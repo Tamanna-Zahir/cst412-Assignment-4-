@@ -156,16 +156,147 @@ def parse_condition(condition):
 # -------------------------------------------------
 
 #TODO: Framework Feature 3: Check Requests
+def check_request(sub_id, res_id, action):
+    """
+    Checks if a request is permitted or denied based on ABAC rules.
+
+    Args:
+        sub_id (str): Subject ID making the request.
+        res_id (str): Resource ID being accessed.
+        action (str): Action being performed.
+
+    Returns:
+        str: "Permit" if the request is allowed, otherwise "Deny".
+    """
+    for rule in abac_policy["rules"]:
+        # print("rabac_policy[rules]", rule)
+        # Check subject condition
+        if rule["subCond"]:
+            subject = next((user for user in abac_policy["users"] if user["uid"] == sub_id), None)
+            if not subject or not evaluate_condition(rule["subCond"], subject):
+                continue
+
+        # Check resource condition
+        if rule["resCond"]:
+            resource = next((res for res in abac_policy["resources"] if res["rid"] == res_id), None)
+            if not resource or not evaluate_condition(rule["resCond"], resource):
+                continue
+
+        # Check action
+        if rule["acts"] and action not in rule["acts"]:
+            continue
+
+        # Check constraints
+        if rule["cons"] and not evaluate_condition(rule["cons"], {"action": action, "subject": sub_id, "resource": res_id}):
+            continue
+
+        # If all conditions pass, permit the request
+        return "Permit"
+
+    # If no rule permits the request, deny it
+    return "Deny"
+
+
+def evaluate_condition(conditions, attributes):
+    """
+    Evaluates a set of conditions against a given set of attributes.
+
+    Args:
+        conditions (dict): Conditions to evaluate.
+        attributes (dict): Attributes to check against.
+
+    Returns:
+        bool: True if all conditions are met, otherwise False.
+    """
+    for key, value in conditions.items():
+        if key not in attributes:
+            return False
+
+        attr_value = attributes[key]
+
+        if isinstance(value, set):  # "in" operator
+            if attr_value not in value:
+                return False
+        else:  # "equals" or other simple comparisons
+            if attr_value != value:
+                return False
+
+    return True
+
+def load_requests():
+    """
+    Prompts the user for a file path and loads requests from the specified file.
+
+    Returns:
+        list: List of parsed requests as tuples (sub_id, res_id, action).
+    """
+    file_path = input("Enter the file path to load the requests file: ")
+    print()  # Add a blank line for better formatting
+
+    requests = []
+    try:
+        with open(file_path, "r") as file:
+            for line in file:
+                line = line.strip()
+                # Skip empty lines or comments
+                if not line or line.startswith("#"):
+                    continue
+
+                # Parse the request as a tuple (subject_id, resource_id, action)
+                parts = line.split(",")
+                if len(parts) == 3:  # Ensure proper formatting
+                    sub_id = parts[0].strip()
+                    res_id = parts[1].strip()
+                    action = parts[2].strip()
+
+                    # Check if resource_id has multiple parts and split them correctly
+                    if 'car' in res_id:
+                        res_id = "car" + res_id.split("car")[1]
+
+                    requests.append((sub_id, res_id, action))
+                else:
+                    print(f"Invalid request format: {line}")
+
+    except FileNotFoundError:
+        print("File not found. Please try again.")
+    # print("test" ,  requests)
+
+    return requests
+
+
+def process_requests(file_path):
+    """
+    Processes a batch of requests and prints the result for each.
+
+    Args:
+        file_path (str): Path to the requests file.
+    """
+    requests = load_requests(file_path)
+    for sub_id, res_id, action in requests:
+        result = check_request(sub_id, res_id, action)
+        print(f"Request: Subject={sub_id}, Resource={res_id}, Action={action} -> {result}")
+
+
+
 
 #TODO: Framework Feature 4: Policy Coverage Analysis
 
 #TODO: Framework Feature 5: Analyze Resource Access Patterns
         
 def main():
-    #load_abac_files()
-    #test_parsing()
+
+    load_abac_files()
+
+    # test_parsing()
+    requests = load_requests()
+    if requests:
+            for request in requests:
+                sub_id, res_id, action = request
+                result = check_request(sub_id, res_id, action)
+                print(f"Request: {request} => {result}")   
     pass
 # -------------------------------------------------
+
 
 if __name__ == "__main__":
     main()
