@@ -75,7 +75,43 @@ def parse_resource_attrib(line):
         abac_policy["resources"].append(resource)
 # -------------------------------------------------
 
-#Parses a rule line to extract its attributes
+# #Parses a rule line to extract its attributes
+# def parse_rule(line):
+#     #Extract the string inside the parentheses
+#     attribute_list = line[line.find("(") + 1 : line.rfind(")")]
+#     attribute = attribute_list.split(";")
+
+#     #Initialize dictionary to store rule attributes
+#     rule = {}
+
+#     #Parse subCond if it exists
+#     if attribute[0].strip():
+#         rule["subCond"] = parse_condition(attribute[0].strip())
+#     else:
+#         rule["subCond"] = None
+
+#     #Parse resCond if it exists
+#     if attribute[1].strip():
+#         rule["resCond"] = parse_condition(attribute[1].strip())
+#     else:
+#         rule["resCond"] = None
+
+#     #Parse acts if it exists
+#     if len(attribute) > 2 and attribute[2].strip():
+#         rule["acts"] = parse_value(attribute[2].strip())
+#     else:
+#         rule["acts"] = None
+
+#     #Parse cons if it exists
+#     if len(attribute) > 3 and attribute[3].strip():
+#         rule["cons"] = parse_condition(attribute[3].strip())
+#     else:
+#         rule["cons"] = None
+
+#     #Add the rule to abac_policy
+#     if rule not in abac_policy["rules"]:
+#         abac_policy["rules"].append(rule)  
+# -------------------------------------------------#Parses a rule line to extract its attributes
 def parse_rule(line):
     #Extract the string inside the parentheses
     attribute_list = line[line.find("(") + 1 : line.rfind(")")]
@@ -104,7 +140,7 @@ def parse_rule(line):
 
     #Parse cons if it exists
     if len(attribute) > 3 and attribute[3].strip():
-        rule["cons"] = parse_condition(attribute[3].strip())
+        rule["cons"] = parse_constraints(attribute[3].strip())
     else:
         rule["cons"] = None
 
@@ -112,6 +148,54 @@ def parse_rule(line):
     if rule not in abac_policy["rules"]:
         abac_policy["rules"].append(rule)  
 # -------------------------------------------------
+        
+#Parses constraints from the rules and stores them in the required format
+def parse_constraints(constraints):
+    if not constraints:
+        return None
+    
+    parsed_constraints = []
+
+    #Map operators to their descriptons
+    operator = {
+        "=": "equals",
+        ">": "subset",
+        "[": "in",
+        "]": "contains"
+    }
+
+    for constraint in constraints.split(","):
+        constraint = constraint.strip()
+        if "=" in constraint:
+            sub_att, res_att = constraint.split("=")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator["="],
+                "res_att":res_att.strip()
+            })
+        elif ">" in constraint:
+            sub_att, res_att = constraint.split(">")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator[">"],
+                "res_att":res_att.strip()
+            })
+        elif "[" in constraint:
+            sub_att, res_att = constraint.split("[")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator["["],
+                "res_att":res_att.strip()
+            })
+        elif "]" in constraint:
+            sub_att, res_att = constraint.split("]")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator["]"],
+                "res_att":res_att.strip()
+            })
+    return parsed_constraints
+
 # ------------------------------------------------- hardcode rules 
 def add_hardcoded_rules():
     global abac_policy  # This will ensure you're modifying the global abac_policy
@@ -242,7 +326,7 @@ def parse_condition(condition):
 #**Testing purposes to make sure parsing works correctly**
 def test_parsing():
     load_abac_files()
-    add_hardcoded_rules()
+    # add_hardcoded_rules()
 
     # print("Users:")
     # for user in abac_policy["users"]:
@@ -351,10 +435,11 @@ def find_resource(res_id):
     return None
 
 def evaluate_subject_condition(subject, subCond):
-    """Evaluate if subject satisfies the subCond condition."""
+    if subCond is None:  # Handle the case where subCond is None
+        return True  # or handle according to your logic (e.g., return False if not allowed)
+
     for attr, values in subCond.items():
-        # Check if the attribute exists in the subject and if its value is in the set of allowed values in subCond
-        if attr not in subject or subject[attr] not in values:
+        if subject.get(attr) not in values:
             return False
     return True
 
@@ -404,14 +489,25 @@ def evaluate_constraints(constraints, subject, resource):
             if sub_value not in res_value:
                 return False
         elif operator == "subset":
+            # Ensure both sub_value and res_value are sets for subset check
+            if not isinstance(sub_value, set):
+                sub_value = set(sub_value)  # Convert sub_value to set if not already
+            if not isinstance(res_value, set):
+                res_value = set(res_value)  # Convert res_value to set if not already
             if not sub_value.issubset(res_value):
                 return False
         elif operator == "contains":
-            if not (set(sub_value) & res_value):
+            # Ensure both sub_value is a set and res_value is a string, convert res_value to set
+            if isinstance(sub_value, set) and isinstance(res_value, str):
+                res_value = set(res_value)  # Convert res_value to set if it's a string
+            if isinstance(sub_value, str) and isinstance(res_value, set):
+                sub_value = set(sub_value)  # Convert sub_value to set if it's a string
+            if not (sub_value & res_value):  # Intersection check
                 return False
         # Add more operators as necessary
 
     return True
+
 
 
 def find_matching_rule(subject, resource, action):
