@@ -112,6 +112,105 @@ def parse_rule(line):
     if rule not in abac_policy["rules"]:
         abac_policy["rules"].append(rule)  
 # -------------------------------------------------
+# ------------------------------------------------- hardcode rules 
+def add_hardcoded_rules():
+    global abac_policy  # This will ensure you're modifying the global abac_policy
+
+    abac_policy["rules"] = [
+       
+        # Rule 1: A nurse can add an item in a HR for a patient in the ward in which they work
+        {
+            "subCond": {"position": {"nurse"}},  # Subject must have position = nurse
+            "resCond": {"type": {"HR"}},  # Resource type must be HR
+            "acts": {"addItem"},  # Allowed action is addItem
+            "cons":[{
+                "sub_att": "ward",
+                "operator": "equals",  # Constraint: ward must match between subject and resource
+                "res_att": "ward"
+            }
+            ]
+        },
+
+        # Rule 2: A user can add an item in an HR for a patient treated by one of the teams they are a member of
+        {
+            "subCond": {},  # No specific conditions on the subject
+            "resCond": {"type": {"HR"}},  # Resource type must be HR
+            "acts": {"addItem"},
+            "cons": [
+                {
+                "sub_att": "teams",
+                "operator": "subset",  # Constraint: subject's teams must be a subset of treatingTeam
+                "res_att": "treatingTeam"
+            }
+            ]
+        },
+
+        # Rule 3: A user can add an item with topic "note" in their own HR
+        {
+            "subCond": {},  # No specific conditions on the subject
+            "resCond": {"type": {"HR"}},  # Resource type must be HR
+            "acts": {"addNote"},
+            "cons": [
+                {
+                    "sub_att": "uid",
+                    "operator": "equals",  # Constraint: subject's uid must match the resource's uid (patient)
+                    "res_att": "patient"
+                 }
+            ]
+        },
+
+        # Rule 4: A user can add an item with topic "note" in the HR of a patient for which they are an agent
+        {
+            "subCond": {},  # No specific conditions on the subject
+            "resCond": {"type": {"HR"}},  # Resource type must be HR
+            "acts": {"addNote"},
+            "cons": [
+                {
+                "sub_att": "agentFor",
+                "operator": "in",  # Constraint: subject's agentFor must include the patient
+                "res_att": "patient"
+            }
+            ]
+        },
+
+        # Rule 5: The author of an item can read it
+        {
+            "subCond": {},  # No specific conditions on the subject
+            "resCond": {"type": {"HRitem"}},  # Resource type must be HRitem
+            "acts": {"read"},
+            "cons": [
+                {
+                "sub_att": "uid",
+                "operator": "equals",  # Constraint: subject's uid must match the resource's uid (author)
+                "res_att": "author"
+            }
+            ]
+        },
+
+        # Rule 6: A user can read an item in a HR for a patient treated by one of the teams they are a member of,
+        # if the topics of the item are among their specialties
+        {
+            "subCond": {},  # No specific conditions on the subject
+            "resCond": {"type": {"HRitem"}},  # Resource type must be HRitem
+            "acts": {"read"},
+            "cons": [
+                {
+                    "sub_att": "specialties",
+                    "operator": "subset",  # Constraint: subject's specialties must contain resource's topics
+                    "res_att": "topics"
+                },
+                {
+                    "sub_att": "level",
+                    "operator": "equal",  # Constraint: subject's level must be equal to resource's difficulty
+                    "res_att": "difficulty"
+                }
+            ]
+        }
+    ]
+    
+
+
+# -------------------------------------------------
         
 #Parses a value to determine if it's a set or an atomic value
 def parse_value (value):
@@ -141,60 +240,27 @@ def parse_condition(condition):
 # -------------------------------------------------
 
 #**Testing purposes to make sure parsing works correctly**
-# def test_parsing():
-#     load_abac_files()
-    
-#     print("Users:")
-#     for user in abac_policy["users"]:
-#         print(user)
-#     print("\nResources:")
-#     for resource in abac_policy["resources"]:
-#         print(resource)
-#     print("\nRules:")
-#     for rule in abac_policy["rules"]:
-#         print(rule)
+def test_parsing():
+    load_abac_files()
+    add_hardcoded_rules()
+
+    # print("Users:")
+    # for user in abac_policy["users"]:
+    #     print(user)
+    # print("\nResources:")
+    # for resource in abac_policy["resources"]:
+    #     print(resource)
+    print("\nRules:")
+    for rule in abac_policy["rules"]:
+        print(rule)
 # -------------------------------------------------
 
+
+
+
+
 #TODO: Framework Feature 3: Check Requests
-def check_request(sub_id, res_id, action):
-    """
-    Checks if a request is permitted or denied based on ABAC rules.
 
-    Args:
-        sub_id (str): Subject ID making the request.
-        res_id (str): Resource ID being accessed.
-        action (str): Action being performed.
-
-    Returns:
-        str: "Permit" if the request is allowed, otherwise "Deny".
-    """
-    for rule in abac_policy["rules"]:
-        # print("rabac_policy[rules]", rule)
-        # Check subject condition
-        if rule["subCond"]:
-            subject = next((user for user in abac_policy["users"] if user["uid"] == sub_id), None)
-            if not subject or not evaluate_condition(rule["subCond"], subject):
-                continue
-
-        # Check resource condition
-        if rule["resCond"]:
-            resource = next((res for res in abac_policy["resources"] if res["rid"] == res_id), None)
-            if not resource or not evaluate_condition(rule["resCond"], resource):
-                continue
-
-        # Check action
-        if rule["acts"] and action not in rule["acts"]:
-            continue
-
-        # Check constraints
-        if rule["cons"] and not evaluate_condition(rule["cons"], {"action": action, "subject": sub_id, "resource": res_id}):
-            continue
-
-        # If all conditions pass, permit the request
-        return "Permit"
-
-    # If no rule permits the request, deny it
-    return "Deny"
 
 
 def evaluate_condition(conditions, attributes):
@@ -217,11 +283,16 @@ def evaluate_condition(conditions, attributes):
         if isinstance(value, set):  # "in" operator
             if attr_value not in value:
                 return False
-        else:  # "equals" or other simple comparisons
-            if attr_value != value:
+        elif "contains" in key:  # "contains" operator
+            if not (set(attr_value) & value):
                 return False
+        elif "supersetq" in key:  # "supersetq" operator
+            if not value.issubset(attr_value):
+                return False
+        elif attr_value != value:  # "equals" operator
+            return False
 
-    return True
+    return True 
 
 def load_requests():
     """
@@ -263,20 +334,141 @@ def load_requests():
 
     return requests
 
+def find_subject(sub_id):
+    """Fetch the subject based on the subject ID."""
+    for user in abac_policy["users"]:
+        if user["uid"] == sub_id:
+            # print(f"Found matching user: {user}")
+            return user
+    return None
 
-def process_requests(file_path):
+def find_resource(res_id):
+    """Fetch the resource based on the resource ID."""
+    for res in abac_policy["resources"]:
+        if res["rid"] == res_id:
+            # print(f"Found matching resource: {res}")
+            return res
+    return None
+
+def evaluate_subject_condition(subject, subCond):
+    """Evaluate if subject satisfies the subCond condition."""
+    for attr, values in subCond.items():
+        # Check if the attribute exists in the subject and if its value is in the set of allowed values in subCond
+        if attr not in subject or subject[attr] not in values:
+            return False
+    return True
+
+def evaluate_resource_condition(resource, res_cond):
+    for attr, values in res_cond.items():
+        if attr in resource:
+            if resource[attr] not in values:
+                return False  # If the attribute value doesn't match, return False
+        else:
+            return False  # If the attribute is not present, return False
+    return True
+def evaluate_action(acts, action):
+    """Check if action is allowed based on the acts condition."""
+    return action in acts  # Check if action is in the set of allowed actions
+
+
+def evaluate_constraints(constraints, subject, resource):
     """
-    Processes a batch of requests and prints the result for each.
+    Evaluates constraints between subject and resource attributes.
 
     Args:
-        file_path (str): Path to the requests file.
+        constraints (dict): Constraints to evaluate.
+        subject (dict): Subject attributes.
+        resource (dict): Resource attributes.
+
+    Returns:
+        bool: True if all constraints are met, otherwise False.
     """
-    requests = load_requests(file_path)
-    for sub_id, res_id, action in requests:
-        result = check_request(sub_id, res_id, action)
-        print(f"Request: Subject={sub_id}, Resource={res_id}, Action={action} -> {result}")
+    for constraint in constraints:
+        sub_att = constraint["sub_att"]
+        res_att = constraint["res_att"]
+        operator = constraint["operator"]
+
+        # Get the values of the subject and resource attributes
+        sub_value = subject.get(sub_att)
+        res_value = resource.get(res_att)
+
+        # Check if values are None
+        if sub_value is None or res_value is None:
+            return False
+
+        # Perform the actual comparison based on the operator
+        if operator == "equals":
+            if sub_value != res_value:
+                return False
+        elif operator == "in":
+            if sub_value not in res_value:
+                return False
+        elif operator == "subset":
+            if not sub_value.issubset(res_value):
+                return False
+        elif operator == "contains":
+            if not (set(sub_value) & res_value):
+                return False
+        # Add more operators as necessary
+
+    return True
 
 
+def find_matching_rule(subject, resource, action):
+    for rule in abac_policy["rules"]:
+        # Check if subCond matches subject
+        if not evaluate_subject_condition(subject, rule['subCond']):
+            # print(f"Subject condition not met for rule: {rule}")
+            continue
+        
+        # Check if resCond matches resource
+        if not evaluate_resource_condition(resource, rule['resCond']):
+            # print(f"Resource condition not met for rule: {rule}")
+            continue
+        
+        # # Check if acts matches action
+        if not evaluate_action(rule['acts'], action):
+            # print(f"Action not allowed for rule: {rule}")
+            continue
+        
+        # # Check constraints (if any) with subject and resource
+        if rule["cons"] and not evaluate_constraints(rule["cons"], subject, resource):
+            # print(f"Constraint not met for rule: {rule}")
+            continue
+        
+        # If all conditions pass, return the rule
+        # print(f"Found matching rule: {rule}")
+        return True  # Return True when a matching rule is found
+
+    print("No matching rule found")
+    return False  # Return False if no matching rule is found
+
+
+def check_request(sub_id, res_id, action):
+    """
+    Checks if a request is permitted or denied based on ABAC rules.
+
+    Args:
+        sub_id (str): Subject ID making the request.
+        res_id (str): Resource ID being accessed.
+        action (str): Action being performed.
+
+    Returns:
+        str: "Permit" if the request is allowed, otherwise "Deny".
+    """
+    subject = find_subject(sub_id)
+    if not subject:
+        return "Deny"
+
+    resource = find_resource(res_id)
+    if not resource:
+        return "Deny"
+
+    matching_rule = find_matching_rule(subject, resource, action)
+    if matching_rule:
+        return "Permit"
+
+    return "Deny"
 
 
 #TODO: Framework Feature 4: Policy Coverage Analysis
@@ -286,8 +478,11 @@ def process_requests(file_path):
 def main():
 
     load_abac_files()
+    test_parsing()
 
-    # test_parsing()
+    # result = check_request("oncDoc1","oncPat1oncItem","read")
+    # print(f"Request: (oncDoc1,oncPat1oncItem,read)  => {result}")  
+
     requests = load_requests()
     if requests:
             for request in requests:
