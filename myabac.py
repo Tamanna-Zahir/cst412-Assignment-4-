@@ -113,11 +113,53 @@ def parse_rule(line):
         abac_policy["rules"].append(rule)  
 # -------------------------------------------------
         
+#Parses constraints from the rules and stores them in the required format
 def parse_constraints(constraints):
     if not constraints:
         return None
+    
+    parsed_constraints = []
 
-    return {constraint.strip() for constraint in constraints.split(",")}
+    #Map operators to their descriptons
+    operator = {
+        "=": "equals",
+        ">": "subset",
+        "[": "in",
+        "]": "contains"
+    }
+
+    for constraint in constraints.split(","):
+        constraint = constraint.strip()
+        if "=" in constraint:
+            sub_att, res_att = constraint.split("=")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator["="],
+                "res_att":res_att.strip()
+            })
+        elif ">" in constraint:
+            sub_att, res_att = constraint.split(">")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator[">"],
+                "res_att":res_att.strip()
+            })
+        elif "[" in constraint:
+            sub_att, res_att = constraint.split("[")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator["["],
+                "res_att":res_att.strip()
+            })
+        elif "]" in constraint:
+            sub_att, res_att = constraint.split("]")
+            parsed_constraints.append({
+                "sub_att": sub_att.strip(),
+                "operator": operator["]"],
+                "res_att":res_att.strip()
+            })
+    return parsed_constraints
+# -------------------------------------------------
         
 #Parses a value to determine if it's a set or an atomic value
 def parse_value (value):
@@ -146,19 +188,39 @@ def parse_condition(condition):
     return conditions
 # -------------------------------------------------
 
-#**Testing purposes to make sure parsing works correctly**
-# def test_parsing():
-#     load_abac_files()
-    
-#     print("Users:")
-#     for user in abac_policy["users"]:
-#         print(user)
-#     print("\nResources:")
-#     for resource in abac_policy["resources"]:
-#         print(resource)
-#     print("\nRules:")
-#     for rule in abac_policy["rules"]:
-#         print(rule)
+#Testing purposes to make sure parsing works correctly
+def test_parsing():
+    print("Users:")
+    for user in abac_policy["users"]:
+        print(f"    {user}")
+    print("\nResources:")
+    for resource in abac_policy["resources"]:
+        print(f"    {resource}")
+    print("\nRules:")
+    for rule in abac_policy["rules"]:
+        print(f"{format_rule(rule)}")
+# -------------------------------------------------
+        
+#Format rules for display
+def format_rule(rule):
+    formatted_rule = "{\n"
+    formatted_rule += f'    "subCond": {rule["subCond"] if rule["subCond"] is not None else {}},\n'
+    formatted_rule += f'    "resCond": {rule["resCond"] if rule["resCond"] is not None else {}},\n'
+    formatted_rule += f'    "acts": {rule["acts"] if rule["acts"] is not None else {}},\n'
+    formatted_rule += f'    "cons": [\n'
+    if rule["cons"] is not None:
+        for con in rule["cons"]:
+            formatted_rule += (
+                f'        {{\n'
+                f'            "sub_att": "{con["sub_att"]}",\n'
+                f'            "operator": "{con["operator"]}",\n'
+                f'            "res_att": "{con["res_att"]}"\n'
+                f'        }},\n'
+            )
+    formatted_rule = formatted_rule.rstrip(",\n") + "\n"
+    formatted_rule += "    ]\n"
+    formatted_rule += "}"
+    return formatted_rule
 # -------------------------------------------------
 
 #TODO: Framework Feature 3: Check Requests
