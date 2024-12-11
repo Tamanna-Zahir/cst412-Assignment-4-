@@ -104,7 +104,7 @@ def parse_rule(line):
 
     #Parse cons if it exists
     if len(attribute) > 3 and attribute[3].strip():
-        rule["cons"] = parse_condition(attribute[3].strip())
+        rule["cons"] = parse_constraints(attribute[3].strip())
     else:
         rule["cons"] = None
 
@@ -112,6 +112,12 @@ def parse_rule(line):
     if rule not in abac_policy["rules"]:
         abac_policy["rules"].append(rule)  
 # -------------------------------------------------
+        
+def parse_constraints(constraints):
+    if not constraints:
+        return None
+
+    return {constraint.strip() for constraint in constraints.split(",")}
         
 #Parses a value to determine if it's a set or an atomic value
 def parse_value (value):
