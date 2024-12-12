@@ -312,19 +312,14 @@ def load_requests():
                     sub_id = parts[0].strip()
                     res_id = parts[1].strip()
                     action = parts[2].strip()
-
-                    # Check if resource_id has multiple parts and split them correctly
-                    if 'car' in res_id:
-                        res_id = "car" + res_id.split("car")[1]
-
                     requests.append((sub_id, res_id, action))
                 else:
                     print(f"Invalid request format: {line}")
 
     except FileNotFoundError:
         print("File not found. Please try again.")
-    # print("test" ,  requests)
 
+    # Return the parsed requests
     return requests
 
 def find_subject(sub_id):
@@ -623,6 +618,7 @@ def main():
     # print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
 
     requests = load_requests()
+    
     if requests:
             for request in requests:
                 sub_id, res_id, action = request
@@ -630,8 +626,8 @@ def main():
                 result = check_request(sub_id, res_id, action)
                 print(f"Request: {request} => {result}")   
     pass
-    analyze_policy_coverage()
-    analyze_access_patterns()
+    # analyze_policy_coverage()
+    # analyze_access_patterns()
 
 
 
