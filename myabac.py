@@ -2,6 +2,8 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
+
 
 #Framework Feature 1: Data Structure:
 abac_policy = {
@@ -14,30 +16,53 @@ abac_policy = {
 #Framework Feature 2: Parse ABAC Policies From Input Files:
 #Prompts the user for the file path of the ABAC policy file.
 #Reads the file line by line and parses the info based on the type
-def load_abac_files(): 
-
-    file_path = input("Enter the file path to load the ABAC policy file: ")
-    print()
-
+def load_abac_files():
+    """
+    Loads the ABAC policy file based on command-line arguments for different modes.
+    Supports -e, -a, and -b options as specified in the requirements.
+    """
+    
+    if len(sys.argv) < 3:
+        print("Usage:")
+        print("  python3 myabac.py -e <policy_file> <requests_file>")
+        print("  python3 myabac.py -a <policy_file>")
+        print("  python3 myabac.py -b <policy_file>")
+        return
+    option = sys.argv[1]
+    policy_file = sys.argv[2]
     try:
-        with open(file_path, "r") as file:
+        with open(policy_file, "r") as file:
             for line in file:
-                #Remove leading and trailing whitespace
+                # Remove leading and trailing whitespace
                 line = line.strip()
-
-                #Skip empty lines/comments
+                # Skip empty lines/comments
                 if not line or line.startswith("#"):
                     continue
-
                 if line.startswith("userAttrib"):
                     parse_user_attrib(line)
                 elif line.startswith("resourceAttrib"):
                     parse_resource_attrib(line)
                 elif line.startswith("rule"):
                     parse_rule(line)
-
+        print(f"Loaded policy from {policy_file}.")
+        if option == "-e":
+            if len(sys.argv) < 4:
+                print("Error: -e option requires a requests file.")
+                return
+            requests_file = sys.argv[3]
+            requests = load_requests(requests_file)
+            for request in requests:
+                sub_id, res_id, action = request
+                result = check_request(sub_id, res_id, action)
+                print(f"Request: {request} => {result}")
+        elif option == "-a":
+            analyze_policy_coverage()
+        elif option == "-b":
+            analyze_access_patterns()
+        else:
+            print(f"Error: Unknown option {option}")
     except FileNotFoundError:
-        print ("File not found. Please try again.")
+        print(f"Error: Policy file '{policy_file}' not found.")
 # -------------------------------------------------
 
 #Parses a userAttrib line to extract the user ID and their attributes
@@ -287,14 +312,15 @@ def evaluate_condition(conditions, attributes):
 
     return True 
 
-def load_requests():
+def load_requests(file):
     """
     Prompts the user for a file path and loads requests from the specified file.
 
     Returns:
         list: List of parsed requests as tuples (sub_id, res_id, action).
     """
-    file_path = input("Enter the file path to load the requests file: ")
+
+    file_path = file
     print()  # Add a blank line for better formatting
 
     requests = []
@@ -622,24 +648,17 @@ def main():
     # result = check_request("carDoc2","carPat2carItem","read")
     # print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
 
-    requests = load_requests()
-    if requests:
-            for request in requests:
-                sub_id, res_id, action = request
-                # print(f"Request: {request}")
-                result = check_request(sub_id, res_id, action)
-                print(f"Request: {request} => {result}")   
-    pass
-    analyze_policy_coverage()
-    analyze_access_patterns()
-
-
-
-
-
-
-
-
+    # requests = load_requests()
+    # if requests:
+    #         for request in requests:
+    #             sub_id, res_id, action = request
+    #             # print(f"Request: {request}")
+    #             result = check_request(sub_id, res_id, action)
+    #             print(f"Request: {request} => {result}")   
+    # pass
+    # analyze_policy_coverage()
+    # analyze_access_patterns()
+    
 # -------------------------------------------------
 
 
