@@ -1,5 +1,7 @@
 # main python file 
 import os
+import matplotlib.pyplot as plt
+import numpy as np
 
 #Framework Feature 1: Data Structure:
 abac_policy = {
@@ -13,6 +15,7 @@ abac_policy = {
 #Prompts the user for the file path of the ABAC policy file.
 #Reads the file line by line and parses the info based on the type
 def load_abac_files(): 
+
     file_path = input("Enter the file path to load the ABAC policy file: ")
     print()
 
@@ -362,7 +365,7 @@ def evaluate_action(acts, action):
     return action in acts  # Check if action is in the set of allowed actions
 
 
-def evaluate_constraints(constraints, subject, resource):
+def evaluate_constraints(constraints, subject, resource): 
     """
     Evaluates constraints between subject and resource attributes.
 
@@ -379,7 +382,7 @@ def evaluate_constraints(constraints, subject, resource):
         res_att = constraint["res_att"]
         operator = constraint["operator"]
 
-        # Get the values of the subject and resource attributes
+        # Get the values of the subject and resource attributes and convert them to strings
         sub_value = subject.get(sub_att)
         res_value = resource.get(res_att)
 
@@ -388,38 +391,48 @@ def evaluate_constraints(constraints, subject, resource):
             print(f"Warning: Missing value for {sub_att} or {res_att}.")
             return False
 
+        # Convert both values to strings for uniformity
+        sub_value_str = str(sub_value)
+        res_value_str = str(res_value)
+
         # Perform the actual comparison based on the operator
-        print(f"Evaluating: {sub_att} {operator} {res_att} -> {sub_value} {operator} {res_value}")
+        print(f"Evaluating: {sub_att} {operator} {res_att} -> {sub_value_str} {operator} {res_value_str}")
         
         if operator == "equals":
             if sub_value != res_value:
                 print(f"Failed: {sub_value} != {res_value}")
                 return False
         elif operator == "in":
-            if sub_value not in res_value:
-                print(f"Failed: {sub_value} not in {res_value}")
+            if sub_value_str not in res_value_str:
+                print(f"Failed: {sub_value_str} not in {res_value_str}")
                 return False
         elif operator == "subset":
             # Ensure both sub_value and res_value are sets for subset check
-            if not isinstance(sub_value, set):
-                sub_value = set(sub_value)  # Convert sub_value to set if not already
-            if not isinstance(res_value, set):
-                res_value = set(res_value)  # Convert res_value to set if not already
-            if not sub_value.issubset(res_value):
-                print(f"Failed: {sub_value} is not a subset of {res_value}")
+            sub_value_set = set(sub_value) if not isinstance(sub_value, set) else sub_value
+            res_value_set = set(res_value) if not isinstance(res_value, set) else res_value
+            if not sub_value_set.issubset(res_value_set):
+                print(f"Failed: {sub_value_set} is not a subset of {res_value_set}")
                 return False
         elif operator == "contains":
-            # Ensure both sub_value is a set and res_value is a string, convert res_value to set
+            # Ensure both sub_value and res_value are strings or sets before checking intersection
             if isinstance(sub_value, set) and isinstance(res_value, str):
                 res_value = set(res_value)  # Convert res_value to set if it's a string
             if isinstance(sub_value, str) and isinstance(res_value, set):
                 sub_value = set(sub_value)  # Convert sub_value to set if it's a string
-            if not (sub_value & res_value):  # Intersection check
-                print(f"Failed: No intersection between {sub_value} and {res_value}")
+
+            # Now perform the contains check (intersection of sets)
+            if isinstance(sub_value, set) and isinstance(res_value, set):
+                if not (sub_value & res_value):  # Intersection check for sets
+                    print(f"Failed: No intersection between {sub_value} and {res_value}")
+                    return False
+            else:
+                print(f"Failed: Invalid types for contains check: {sub_value}, {res_value}")
                 return False
+
         # Add more operators as necessary
 
     return True
+
 
 
 
@@ -481,24 +494,91 @@ def check_request(sub_id, res_id, action):
 
 
 #TODO: Framework Feature 4: Policy Coverage Analysis
+#TODO: Framework Feature 4: Policy Coverage Analysis
+def analyze_policy_coverage():
+    """
+    Analyzes policy coverage by calculating authorizations for each rule
+    and generating a heatmap.
+    """
+    rules = abac_policy["rules"]
+    users = abac_policy["users"]
+    resources = abac_policy["resources"]
+    # Initialize data for analysis
+    attributes = set()
+    coverage_data = []
+    for rule in rules:
+        covered_authorizations = 0
+        referenced_attributes = set()
+        # Check all user-resource-action combinations inline
+        for user in users:
+            for resource in resources:
+                for action in rule["acts"]:
+                    # Inline evaluation logic
+                    sub_cond_match = all(
+                        attr in user and user[attr] in values
+                        for attr, values in (rule["subCond"] or {}).items()
+                    )
+                    res_cond_match = all(
+                        attr in resource and resource[attr] in values
+                        for attr, values in (rule["resCond"] or {}).items()
+                    )
+                    cons_match = all(
+                        user.get(cons["sub_att"]) == resource.get(cons["res_att"])
+                        for cons in (rule["cons"] or [])
+                    )
+                    if sub_cond_match and res_cond_match and cons_match:
+                        covered_authorizations += 1
+        # Collect attributes used in the rule
+        if rule["subCond"]:
+            referenced_attributes.update(rule["subCond"].keys())
+        if rule["resCond"]:
+            referenced_attributes.update(rule["resCond"].keys())
+        if rule["cons"]:
+            for constraint in rule["cons"]:
+                referenced_attributes.update([constraint["sub_att"], constraint["res_att"]])
+        attributes.update(referenced_attributes)
+        coverage_data.append((covered_authorizations, referenced_attributes))
+    # Create a sorted list of attributes
+    sorted_attributes = sorted(attributes)
+    heatmap_matrix = np.zeros((len(rules), len(sorted_attributes)))
+    # Populate the heatmap matrix
+    for rule_index, (authorizations, referenced_attrs) in enumerate(coverage_data):
+        for attr in referenced_attrs:
+            attr_index = sorted_attributes.index(attr)
+            heatmap_matrix[rule_index][attr_index] = authorizations
+    # Generate the heatmap
+    plt.figure(figsize=(10, 8))
+    plt.imshow(heatmap_matrix, cmap="YlGn", aspect="auto")
+    # Configure heatmap labels and color bar
+    plt.xticks(ticks=np.arange(len(sorted_attributes)), labels=sorted_attributes, rotation=45, ha="right")
+    plt.yticks(ticks=np.arange(len(rules)), labels=[f"Rule {i + 1}" for i in range(len(rules))])
+    plt.colorbar(label="Number of Authorizations")
+    plt.title("Policy Coverage Analysis Heatmap")
+    plt.xlabel("Attributes")
+    plt.ylabel("Rules")
+    plt.tight_layout()
+    plt.show()
+
 
 #TODO: Framework Feature 5: Analyze Resource Access Patterns
         
 def main():
 
     load_abac_files()
-    # test_parsing()
+    test_parsing()
 
-    # result = check_request("carDoc2","carPat2carItem","read")
-    # print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
+    result = check_request("carDoc2","carPat2carItem","read")
+    print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
 
-    requests = load_requests()
-    if requests:
-            for request in requests:
-                sub_id, res_id, action = request
-                result = check_request(sub_id, res_id, action)
-                print(f"Request: {request} => {result}")   
-    pass
+    # requests = load_requests()
+    # if requests:
+    #         for request in requests:
+    #             sub_id, res_id, action = request
+    #             result = check_request(sub_id, res_id, action)
+    #             print(f"Request: {request} => {result}")   
+    # pass
+    analyze_policy_coverage()
+
 # -------------------------------------------------
 
 
