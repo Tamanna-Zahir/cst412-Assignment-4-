@@ -197,101 +197,7 @@ def parse_constraints(constraints):
     return parsed_constraints
 
 # ------------------------------------------------- hardcode rules 
-def add_hardcoded_rules():
-    global abac_policy  # This will ensure you're modifying the global abac_policy
 
-    abac_policy["rules"] = [
-       
-        # Rule 1: A nurse can add an item in a HR for a patient in the ward in which they work
-        {
-            "subCond": {"position": {"nurse"}},  # Subject must have position = nurse
-            "resCond": {"type": {"HR"}},  # Resource type must be HR
-            "acts": {"addItem"},  # Allowed action is addItem
-            "cons":[{
-                "sub_att": "ward",
-                "operator": "equals",  # Constraint: ward must match between subject and resource
-                "res_att": "ward"
-            }
-            ]
-        },
-
-        # Rule 2: A user can add an item in an HR for a patient treated by one of the teams they are a member of
-        {
-            "subCond": {},  # No specific conditions on the subject
-            "resCond": {"type": {"HR"}},  # Resource type must be HR
-            "acts": {"addItem"},
-            "cons": [
-                {
-                "sub_att": "teams",
-                "operator": "subset",  # Constraint: subject's teams must be a subset of treatingTeam
-                "res_att": "treatingTeam"
-            }
-            ]
-        },
-
-        # Rule 3: A user can add an item with topic "note" in their own HR
-        {
-            "subCond": {},  # No specific conditions on the subject
-            "resCond": {"type": {"HR"}},  # Resource type must be HR
-            "acts": {"addNote"},
-            "cons": [
-                {
-                    "sub_att": "uid",
-                    "operator": "equals",  # Constraint: subject's uid must match the resource's uid (patient)
-                    "res_att": "patient"
-                 }
-            ]
-        },
-
-        # Rule 4: A user can add an item with topic "note" in the HR of a patient for which they are an agent
-        {
-            "subCond": {},  # No specific conditions on the subject
-            "resCond": {"type": {"HR"}},  # Resource type must be HR
-            "acts": {"addNote"},
-            "cons": [
-                {
-                "sub_att": "agentFor",
-                "operator": "in",  # Constraint: subject's agentFor must include the patient
-                "res_att": "patient"
-            }
-            ]
-        },
-
-        # Rule 5: The author of an item can read it
-        {
-            "subCond": {},  # No specific conditions on the subject
-            "resCond": {"type": {"HRitem"}},  # Resource type must be HRitem
-            "acts": {"read"},
-            "cons": [
-                {
-                "sub_att": "uid",
-                "operator": "equals",  # Constraint: subject's uid must match the resource's uid (author)
-                "res_att": "author"
-            }
-            ]
-        },
-
-        # Rule 6: A user can read an item in a HR for a patient treated by one of the teams they are a member of,
-        # if the topics of the item are among their specialties
-        {
-            "subCond": {},  # No specific conditions on the subject
-            "resCond": {"type": {"HRitem"}},  # Resource type must be HRitem
-            "acts": {"read"},
-            "cons": [
-                {
-                    "sub_att": "specialties",
-                    "operator": "subset",  # Constraint: subject's specialties must contain resource's topics
-                    "res_att": "topics"
-                },
-                {
-                    "sub_att": "level",
-                    "operator": "equal",  # Constraint: subject's level must be equal to resource's difficulty
-                    "res_att": "difficulty"
-                }
-            ]
-        }
-    ]
-    
 
 
 # -------------------------------------------------
@@ -328,12 +234,12 @@ def test_parsing():
     load_abac_files()
     # add_hardcoded_rules()
 
-    # print("Users:")
-    # for user in abac_policy["users"]:
-    #     print(user)
-    # print("\nResources:")
-    # for resource in abac_policy["resources"]:
-    #     print(resource)
+    print("Users:")
+    for user in abac_policy["users"]:
+        print(user)
+    print("\nResources:")
+    for resource in abac_policy["resources"]:
+        print(resource)
     print("\nRules:")
     for rule in abac_policy["rules"]:
         print(rule)
@@ -422,7 +328,7 @@ def find_subject(sub_id):
     """Fetch the subject based on the subject ID."""
     for user in abac_policy["users"]:
         if user["uid"] == sub_id:
-            # print(f"Found matching user: {user}")
+            print(f"Found matching user: {user}")
             return user
     return None
 
@@ -430,7 +336,7 @@ def find_resource(res_id):
     """Fetch the resource based on the resource ID."""
     for res in abac_policy["resources"]:
         if res["rid"] == res_id:
-            # print(f"Found matching resource: {res}")
+            print(f"Found matching resource: {res}")
             return res
     return None
 
@@ -461,7 +367,7 @@ def evaluate_constraints(constraints, subject, resource):
     Evaluates constraints between subject and resource attributes.
 
     Args:
-        constraints (dict): Constraints to evaluate.
+        constraints (list): Constraints to evaluate.
         subject (dict): Subject attributes.
         resource (dict): Resource attributes.
 
@@ -479,14 +385,19 @@ def evaluate_constraints(constraints, subject, resource):
 
         # Check if values are None
         if sub_value is None or res_value is None:
+            print(f"Warning: Missing value for {sub_att} or {res_att}.")
             return False
 
         # Perform the actual comparison based on the operator
+        print(f"Evaluating: {sub_att} {operator} {res_att} -> {sub_value} {operator} {res_value}")
+        
         if operator == "equals":
             if sub_value != res_value:
+                print(f"Failed: {sub_value} != {res_value}")
                 return False
         elif operator == "in":
             if sub_value not in res_value:
+                print(f"Failed: {sub_value} not in {res_value}")
                 return False
         elif operator == "subset":
             # Ensure both sub_value and res_value are sets for subset check
@@ -495,6 +406,7 @@ def evaluate_constraints(constraints, subject, resource):
             if not isinstance(res_value, set):
                 res_value = set(res_value)  # Convert res_value to set if not already
             if not sub_value.issubset(res_value):
+                print(f"Failed: {sub_value} is not a subset of {res_value}")
                 return False
         elif operator == "contains":
             # Ensure both sub_value is a set and res_value is a string, convert res_value to set
@@ -503,6 +415,7 @@ def evaluate_constraints(constraints, subject, resource):
             if isinstance(sub_value, str) and isinstance(res_value, set):
                 sub_value = set(sub_value)  # Convert sub_value to set if it's a string
             if not (sub_value & res_value):  # Intersection check
+                print(f"Failed: No intersection between {sub_value} and {res_value}")
                 return False
         # Add more operators as necessary
 
@@ -574,10 +487,10 @@ def check_request(sub_id, res_id, action):
 def main():
 
     load_abac_files()
-    test_parsing()
+    # test_parsing()
 
-    # result = check_request("oncDoc1","oncPat1oncItem","read")
-    # print(f"Request: (oncDoc1,oncPat1oncItem,read)  => {result}")  
+    # result = check_request("carDoc2","carPat2carItem","read")
+    # print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
 
     requests = load_requests()
     if requests:
