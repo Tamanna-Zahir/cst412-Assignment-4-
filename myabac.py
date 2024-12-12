@@ -621,16 +621,16 @@ def main():
     load_abac_files()
     test_parsing()
 
-    result = check_request("carDoc2","carPat2carItem","read")
-    print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
+    # result = check_request("carDoc2","carPat2carItem","read")
+    # print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
 
-    # requests = load_requests()
-    # if requests:
-    #         for request in requests:
-    #             sub_id, res_id, action = request
-    #             result = check_request(sub_id, res_id, action)
-    #             print(f"Request: {request} => {result}")   
-    # pass
+    requests = load_requests()
+    if requests:
+            for request in requests:
+                sub_id, res_id, action = request
+                result = check_request(sub_id, res_id, action)
+                print(f"Request: {request} => {result}")   
+    pass
     analyze_policy_coverage()
     analyze_access_patterns()
 
