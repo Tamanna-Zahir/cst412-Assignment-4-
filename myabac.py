@@ -561,6 +561,60 @@ def analyze_policy_coverage():
 
 
 #TODO: Framework Feature 5: Analyze Resource Access Patterns
+def analyze_access_patterns():
+    """
+    Analyzes resource access patterns to identify the top 10 resources
+    with the highest and lowest number of subjects granted permissions.
+    Generates bar graphs for visualization.
+    """
+    # Dictionary to track the number of subjects accessing each resource
+    access_count = {}
+    # Loop through all rules to find which users can access which resources
+    for rule in abac_policy["rules"]:
+        # Match users based on rule's subject condition
+        matched_users = [
+            user
+            for user in abac_policy["users"]
+            if rule["subCond"] is None or evaluate_condition(rule["subCond"], user)
+        ]
+        # Match resources based on rule's resource condition
+        matched_resources = [
+            res
+            for res in abac_policy["resources"]
+            if rule["resCond"] is None or evaluate_condition(rule["resCond"], res)
+        ]
+        # Count the number of users who can access each resource
+        for res in matched_resources:
+            if res["rid"] not in access_count:
+                access_count[res["rid"]] = 0
+            access_count[res["rid"]] += len(matched_users)
+    # Sort resources by access count
+    sorted_resources = sorted(access_count.items(), key=lambda x: x[1], reverse=True)
+    # Top 10 most accessible resources
+    top_10_most_accessible = sorted_resources[:10]
+    resources_most, counts_most = zip(*top_10_most_accessible) if top_10_most_accessible else ([], [])
+    # Top 10 least accessible resources
+    top_10_least_accessible = sorted_resources[-10:]
+    resources_least, counts_least = zip(*top_10_least_accessible) if top_10_least_accessible else ([], [])
+    # Bar graph for most accessible resources
+    plt.figure(figsize=(10, 5))
+    plt.bar(resources_most, counts_most)
+    plt.title("Top 10 Most Accessible Resources")
+    plt.xlabel("Resources")
+    plt.ylabel("Number of Subjects")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+    # Bar graph for least accessible resources
+    plt.figure(figsize=(10, 5))
+    plt.bar(resources_least, counts_least)
+    plt.title("Top 10 Least Accessible Resources")
+    plt.xlabel("Resources")
+    plt.ylabel("Number of Subjects")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
         
 def main():
 
@@ -578,6 +632,14 @@ def main():
     #             print(f"Request: {request} => {result}")   
     # pass
     analyze_policy_coverage()
+    analyze_access_patterns()
+
+
+
+
+
+
+
 
 # -------------------------------------------------
 
