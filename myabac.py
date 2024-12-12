@@ -338,19 +338,14 @@ def load_requests(file):
                     sub_id = parts[0].strip()
                     res_id = parts[1].strip()
                     action = parts[2].strip()
-
-                    # Check if resource_id has multiple parts and split them correctly
-                    if 'car' in res_id:
-                        res_id = "car" + res_id.split("car")[1]
-
                     requests.append((sub_id, res_id, action))
                 else:
                     print(f"Invalid request format: {line}")
 
     except FileNotFoundError:
         print("File not found. Please try again.")
-    # print("test" ,  requests)
 
+    # Return the parsed requests
     return requests
 
 def find_subject(sub_id):
