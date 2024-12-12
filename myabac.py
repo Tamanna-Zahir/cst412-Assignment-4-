@@ -365,7 +365,7 @@ def evaluate_action(acts, action):
     return action in acts  # Check if action is in the set of allowed actions
 
 
-def evaluate_constraints(constraints, subject, resource):
+def evaluate_constraints(constraints, subject, resource): 
     """
     Evaluates constraints between subject and resource attributes.
 
@@ -390,59 +390,45 @@ def evaluate_constraints(constraints, subject, resource):
         if sub_value is None or res_value is None:
             # print(f"Warning: Missing value for {sub_att} or {res_att}.")
             return False
-
-        # Perform the actual comparison based on the operator
-        # print(f"Evaluating: {sub_att} {operator} {res_att} -> {sub_value} {operator} {res_value}")
         
         if operator == "equals":
-            if not equals(sub_value, res_value):
+            if sub_value != res_value:
                 # print(f"Failed: {sub_value} != {res_value}")
                 return False
+
         elif operator == "in":
-            if not in_operator(sub_value, res_value):
+            if sub_value not in res_value:
                 # print(f"Failed: {sub_value} not in {res_value}")
                 return False
+
         elif operator == "subset":
-            if not subset(sub_value, res_value):
-                # print(f"Failed: {sub_value} is not a subset of {res_value}")
+            # Ensure both values are sets before performing subset check
+            sub_value_set = set(sub_value) if not isinstance(sub_value, set) else sub_value
+            res_value_set = set(res_value) if not isinstance(res_value, set) else res_value
+            if not sub_value_set.issubset(res_value_set):
+                # print(f"Failed: {sub_value_set} is not a subset of {res_value_set}")
                 return False
-        elif operator == "contains":
-            if not contains(sub_value, res_value):
-                # print(f"Failed: No intersection between {sub_value} and {res_value}")
-                return False
-        else:
-            # print(f"Unsupported operator: {operator}")
-            return False
+
+        elif operator == "contains": 
+            # Convert strings to sets for intersection if needed
+            if isinstance(sub_value, set) and isinstance(res_value, set):
+                if not (sub_value & res_value):
+                    # print(f"Failed: No intersection between {sub_value} and {res_value}")
+                    return False
+            else:
+                # If one is not a set, convert strings to sets for comparison
+                if isinstance(sub_value, str):
+                    sub_value = set(sub_value)
+                if isinstance(res_value, str):
+                    res_value = {res_value}
+                if not (sub_value & res_value):
+                    # print(f"Failed: No intersection between {sub_value} and {res_value}")
+                    return False
 
     return True
 
-# Equals function
-def equals(value1, value2):
-    return value1 == value2
 
-# In function
-def in_operator(sub_value, res_value):
-    if isinstance(res_value, str):
-        return sub_value in res_value
-    elif isinstance(res_value, (list, set)):
-        return sub_value in res_value
-    return False
 
-# Contains function (Intersection)
-def contains(sub_value, res_value):
-    if isinstance(sub_value, set) and isinstance(res_value, set):
-        return bool(sub_value & res_value)
-    elif isinstance(sub_value, str) and isinstance(res_value, str):
-        return bool(set(sub_value) & set(res_value))
-    return False
-
-# Subset function
-def subset(sub_value, res_value):
-    if isinstance(sub_value, set) and isinstance(res_value, set):
-        return sub_value.issubset(res_value)
-    elif isinstance(sub_value, list) and isinstance(res_value, list):
-        return all(item in res_value for item in sub_value)
-    return False
 
 
 
@@ -474,7 +460,7 @@ def find_matching_rule(subject, resource, action):
         # print(f"Found matching rule: {rule}")
         return True  # Return True when a matching rule is found
 
-    print("No matching rule found")
+    # print("No matching rule found")
     return False  # Return False if no matching rule is found
 
 
@@ -631,7 +617,7 @@ def analyze_access_patterns():
 def main():
 
     load_abac_files()
-    test_parsing()
+    # test_parsing()
 
     # result = check_request("carDoc2","carPat2carItem","read")
     # print(f"Request: ('carDoc2,carPat2carItem,read')  => {result}")  
@@ -640,6 +626,7 @@ def main():
     if requests:
             for request in requests:
                 sub_id, res_id, action = request
+                # print(f"Request: {request}")
                 result = check_request(sub_id, res_id, action)
                 print(f"Request: {request} => {result}")   
     pass
