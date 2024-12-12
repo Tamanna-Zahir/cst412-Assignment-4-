@@ -331,7 +331,7 @@ def find_subject(sub_id):
     """Fetch the subject based on the subject ID."""
     for user in abac_policy["users"]:
         if user["uid"] == sub_id:
-            print(f"Found matching user: {user}")
+            # print(f"Found matching user: {user}")
             return user
     return None
 
@@ -339,7 +339,7 @@ def find_resource(res_id):
     """Fetch the resource based on the resource ID."""
     for res in abac_policy["resources"]:
         if res["rid"] == res_id:
-            print(f"Found matching resource: {res}")
+            # print(f"Found matching resource: {res}")
             return res
     return None
 
@@ -365,7 +365,7 @@ def evaluate_action(acts, action):
     return action in acts  # Check if action is in the set of allowed actions
 
 
-def evaluate_constraints(constraints, subject, resource): 
+def evaluate_constraints(constraints, subject, resource):
     """
     Evaluates constraints between subject and resource attributes.
 
@@ -382,56 +382,68 @@ def evaluate_constraints(constraints, subject, resource):
         res_att = constraint["res_att"]
         operator = constraint["operator"]
 
-        # Get the values of the subject and resource attributes and convert them to strings
+        # Get the values of the subject and resource attributes
         sub_value = subject.get(sub_att)
         res_value = resource.get(res_att)
 
         # Check if values are None
         if sub_value is None or res_value is None:
-            print(f"Warning: Missing value for {sub_att} or {res_att}.")
+            # print(f"Warning: Missing value for {sub_att} or {res_att}.")
             return False
 
-        # Convert both values to strings for uniformity
-        sub_value_str = str(sub_value)
-        res_value_str = str(res_value)
-
         # Perform the actual comparison based on the operator
-        print(f"Evaluating: {sub_att} {operator} {res_att} -> {sub_value_str} {operator} {res_value_str}")
+        # print(f"Evaluating: {sub_att} {operator} {res_att} -> {sub_value} {operator} {res_value}")
         
         if operator == "equals":
-            if sub_value != res_value:
-                print(f"Failed: {sub_value} != {res_value}")
+            if not equals(sub_value, res_value):
+                # print(f"Failed: {sub_value} != {res_value}")
                 return False
         elif operator == "in":
-            if sub_value_str not in res_value_str:
-                print(f"Failed: {sub_value_str} not in {res_value_str}")
+            if not in_operator(sub_value, res_value):
+                # print(f"Failed: {sub_value} not in {res_value}")
                 return False
         elif operator == "subset":
-            # Ensure both sub_value and res_value are sets for subset check
-            sub_value_set = set(sub_value) if not isinstance(sub_value, set) else sub_value
-            res_value_set = set(res_value) if not isinstance(res_value, set) else res_value
-            if not sub_value_set.issubset(res_value_set):
-                print(f"Failed: {sub_value_set} is not a subset of {res_value_set}")
+            if not subset(sub_value, res_value):
+                # print(f"Failed: {sub_value} is not a subset of {res_value}")
                 return False
         elif operator == "contains":
-            # Ensure both sub_value and res_value are strings or sets before checking intersection
-            if isinstance(sub_value, set) and isinstance(res_value, str):
-                res_value = set(res_value)  # Convert res_value to set if it's a string
-            if isinstance(sub_value, str) and isinstance(res_value, set):
-                sub_value = set(sub_value)  # Convert sub_value to set if it's a string
-
-            # Now perform the contains check (intersection of sets)
-            if isinstance(sub_value, set) and isinstance(res_value, set):
-                if not (sub_value & res_value):  # Intersection check for sets
-                    print(f"Failed: No intersection between {sub_value} and {res_value}")
-                    return False
-            else:
-                print(f"Failed: Invalid types for contains check: {sub_value}, {res_value}")
+            if not contains(sub_value, res_value):
+                # print(f"Failed: No intersection between {sub_value} and {res_value}")
                 return False
-
-        # Add more operators as necessary
+        else:
+            # print(f"Unsupported operator: {operator}")
+            return False
 
     return True
+
+# Equals function
+def equals(value1, value2):
+    return value1 == value2
+
+# In function
+def in_operator(sub_value, res_value):
+    if isinstance(res_value, str):
+        return sub_value in res_value
+    elif isinstance(res_value, (list, set)):
+        return sub_value in res_value
+    return False
+
+# Contains function (Intersection)
+def contains(sub_value, res_value):
+    if isinstance(sub_value, set) and isinstance(res_value, set):
+        return bool(sub_value & res_value)
+    elif isinstance(sub_value, str) and isinstance(res_value, str):
+        return bool(set(sub_value) & set(res_value))
+    return False
+
+# Subset function
+def subset(sub_value, res_value):
+    if isinstance(sub_value, set) and isinstance(res_value, set):
+        return sub_value.issubset(res_value)
+    elif isinstance(sub_value, list) and isinstance(res_value, list):
+        return all(item in res_value for item in sub_value)
+    return False
+
 
 
 
